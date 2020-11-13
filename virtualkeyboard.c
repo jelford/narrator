@@ -1,3 +1,5 @@
+// code from https://www.kernel.org/doc/html/v4.12/input/uinput.html
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
