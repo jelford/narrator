@@ -1,0 +1,2 @@
+# allows access for members of the uinput group to the udev device
+KERNEL=="uinput", GROUP="uinput", MODE:="0660"
