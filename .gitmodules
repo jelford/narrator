@@ -1,0 +1,3 @@
+[submodule "speech-streamer/deepspeech-rs"]
+	path = speech-streamer/deepspeech-rs
+	url = git@github.com:jelford/deepspeech-rs.git

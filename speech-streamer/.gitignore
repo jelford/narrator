@@ -1,1 +1,4 @@
 target
+*.raw
+models
+deepspeech-lib

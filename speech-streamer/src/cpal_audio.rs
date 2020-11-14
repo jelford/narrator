@@ -4,7 +4,7 @@ use cpal::{Stream, SupportedStreamConfigRange};
 
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
-use std::sync::mpsc::{self};
+use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -19,6 +19,12 @@ fn play_for_duration(stream: Stream) {
     drop(stream);
 }
 
+fn play_stream_for_duration<S: AudioStream>(stream: &mut S) {
+    stream.start();
+    sleep(Duration::from_millis(5_000));
+    stream.pause();
+}
+
 fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
     config.channels() == DEEPSPEECH_NUM_CHANNELS
         && config.sample_format() == DEEPSPEECH_INPUT_FORMAT
@@ -26,20 +32,54 @@ fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
         && config.min_sample_rate() <= DEEPSPEECH_SAMPLE_RATE
 }
 
-pub(crate) fn do_input() -> () {
+pub(crate) trait AudioStream {
+    fn start(&mut self);
+    fn pause(&mut self);
+    fn stop(self);
+}
+
+pub(crate) trait AudioInputStream : AudioStream {
+    fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>>;
+}
+
+struct AudioInputStreamContainer {
+    stream: cpal::Stream,
+    rx: Option<mpsc::Receiver<Vec<i16>>>,
+}
+
+impl AudioStream for AudioInputStreamContainer {
+    fn start(&mut self) {
+        self.stream.play().expect("Unable to play stream");
+    }
+
+    fn pause(&mut self) {
+        self.stream.pause().expect("unable to pause stream");
+    }
+
+    fn stop(self) {
+        self.stream.pause().expect("unable to stop stream");
+    }
+}
+
+impl AudioInputStream for AudioInputStreamContainer {
+    fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>> {
+        self.rx.take()
+    }
+}
+
+pub(crate) fn create_input_stream() -> impl AudioInputStream {
+    let (tx, rx) = mpsc::channel();
+
+    let stream = stream_audio_to_channel(tx);
+
+    AudioInputStreamContainer {
+        stream,
+        rx: Some(rx)
+    }
+}
+
+fn stream_audio_to_channel(tx: Sender<Vec<i16>>) -> cpal::Stream {
     let host = cpal::default_host();
-    let (tx, rx) = mpsc::channel::<Vec<f32>>();
-
-    let writer = thread::spawn(move || {
-        let mut output_file = File::create("audio.raw").expect("Unable to create output file");
-        for d in rx {
-            let byte_chunks: Vec<[u8; 4]> = d.iter().map(|p| (p / 3.0).to_ne_bytes()).collect();
-            for b in byte_chunks {
-                output_file.write_all(&b).expect("Unable to write out data");
-            }
-        }
-    });
-
     let input_device = host.default_input_device().expect("No output device");
 
     let inputs_configs = input_device
@@ -53,20 +93,41 @@ pub(crate) fn do_input() -> () {
     let supported_format = first_supported_config.sample_format();
     println!("Recording in format: {:?}", supported_format);
 
-    let stream = input_device
+    input_device
         .build_input_stream(
             &first_supported_config.into(),
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+            move |data: &[i16], _: &cpal::InputCallbackInfo| {
                 let mut buff = Vec::with_capacity(data.len());
+
                 buff.extend(data);
                 tx.send(buff)
                     .expect("Unable to pass data back to main thread");
             },
             |_err| panic!("Received error in audio stream callback thread"),
         )
-        .expect("Unable to setup audio stream");
+        .expect("Unable to setup audio stream")
+}
 
-    play_for_duration(stream);
+
+
+pub(crate) fn do_input() -> () {
+    
+    let mut audio_input_stream = create_input_stream();
+    let rx = audio_input_stream.receive().expect("Unable to get audio stream receiver");
+
+    let writer = thread::spawn(move || {
+        let mut output_file = File::create("audio.raw").expect("Unable to create output file");
+        for d in rx {
+            let byte_chunks: Vec<[u8; 2]> = d.iter().map(|p| p.to_ne_bytes()).collect();
+            for b in byte_chunks {
+                output_file.write_all(&b).expect("Unable to write out data");
+            }
+        }
+    });
+
+    play_stream_for_duration(&mut audio_input_stream);
+    audio_input_stream.stop();
+
     writer.join().expect("Joining writer thread");
 }
 
@@ -96,22 +157,22 @@ pub(crate) fn do_output() -> () {
     let stream = output_device
         .build_output_stream(
             &first_supported_config.into(),
-            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
                 // let _localbuff = buff;
-                let mut point_buff = [0u8; 4];
+                let mut point_buff = [0u8; 2];
 
                 for d in data.iter_mut() {
                     let byte = raw.next();
                     match byte {
                         None => {
-                            *d = 0.0;
+                            *d = 0;
                         }
                         Some(byte) => {
                             point_buff[0] = byte;
                             point_buff[1] = raw.next().unwrap();
-                            point_buff[2] = raw.next().unwrap();
-                            point_buff[3] = raw.next().unwrap();
-                            *d = f32::from_ne_bytes(point_buff);
+                            // point_buff[2] = raw.next().unwrap();
+                            // point_buff[3] = raw.next().unwrap();
+                            *d = i16::from_ne_bytes(point_buff);
                         }
                     }
                 }
