@@ -11,5 +11,4 @@ fn main() {
         "info" => cpal_audio::print_info(),
         _ => panic!("Unknown command"),
     }
-
 }

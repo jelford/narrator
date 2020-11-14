@@ -1,23 +1,21 @@
 use cpal::traits::HostTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::{Host, Stream, SupportedStreamConfigRange};
+use cpal::{Stream, SupportedStreamConfigRange};
 
 use cpal::SampleFormat;
 
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
+use std::sync::mpsc::{self};
+use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-use std::thread;
-use std::sync::mpsc::{self, Sender};
-
 
 fn play_for_duration(stream: Stream) {
     stream.play().unwrap();
     sleep(Duration::from_millis(5000));
     drop(stream);
 }
-
 
 fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
     config.channels() == 1
@@ -62,16 +60,12 @@ pub(crate) fn do_input() -> () {
                 tx.send(buff)
                     .expect("Unable to pass data back to main thread");
             },
-            |_err| {
-                panic!("Received error in audio stream callback thread")
-            },
+            |_err| panic!("Received error in audio stream callback thread"),
         )
         .expect("Unable to setup audio stream");
 
-
     play_for_duration(stream);
     writer.join().expect("Joining writer thread");
-
 }
 
 pub(crate) fn do_output() -> () {
@@ -113,7 +107,6 @@ pub(crate) fn do_output() -> () {
                             point_buff[2] = raw.next().unwrap();
                             point_buff[3] = raw.next().unwrap();
                             *d = f32::from_ne_bytes(point_buff);
-                            
                         }
                     }
                 }
@@ -122,7 +115,8 @@ pub(crate) fn do_output() -> () {
                 panic!("Received error in audio stream callback thread")
                 // error handling
             },
-        ).expect("Unable to setup audio stream");
+        )
+        .expect("Unable to setup audio stream");
 
     play_for_duration(stream);
 }
