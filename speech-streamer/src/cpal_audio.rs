@@ -2,14 +2,16 @@ use cpal::traits::HostTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{Stream, SupportedStreamConfigRange};
 
-use cpal::SampleFormat;
-
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::sync::mpsc::{self};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+
+const deepspeech_input_format: cpal::SampleFormat = cpal::SampleFormat::I16;
+const deepspeech_sample_rate: cpal::SampleRate = cpal::SampleRate(16000);
+const deepspeech_num_channels: cpal::ChannelCount = 1;
 
 fn play_for_duration(stream: Stream) {
     stream.play().unwrap();
@@ -18,10 +20,10 @@ fn play_for_duration(stream: Stream) {
 }
 
 fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
-    config.channels() == 1
-        && config.sample_format() == SampleFormat::F32
-        && config.max_sample_rate() >= cpal::SampleRate(32000)
-        && config.min_sample_rate() <= cpal::SampleRate(32000)
+    config.channels() == deepspeech_num_channels
+        && config.sample_format() == deepspeech_input_format
+        && config.max_sample_rate() >= deepspeech_sample_rate
+        && config.min_sample_rate() <= deepspeech_sample_rate
 }
 
 pub(crate) fn do_input() -> () {
@@ -47,7 +49,7 @@ pub(crate) fn do_input() -> () {
         .filter(fits_format_requirements)
         .last()
         .expect("Didn't find matching input format")
-        .with_sample_rate(cpal::SampleRate(32000));
+        .with_sample_rate(deepspeech_sample_rate);
     let supported_format = first_supported_config.sample_format();
     println!("Recording in format: {:?}", supported_format);
 
@@ -79,7 +81,10 @@ pub(crate) fn do_output() -> () {
         .filter(fits_format_requirements)
         .last()
         .expect("No supported configs found")
-        .with_sample_rate(cpal::SampleRate(32000));
+        .with_sample_rate(deepspeech_sample_rate);
+
+    let supported_format = first_supported_config.sample_format();
+    println!("Playback in format: {:?}", supported_format);
 
     let mut input_file =
         BufReader::new(File::open("audio.raw").expect("Unable to open output file"));
