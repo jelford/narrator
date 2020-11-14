@@ -37,8 +37,7 @@ impl Recognizer for DsRecognizer {
             .expect("initializing new stream context");
         let old_stream = mem::replace(&mut self.stream, new_stream);
 
-        let result = old_stream.finish().expect("Streaming recognition failed");
-        result
+        old_stream.finish().expect("Streaming recognition failed")
     }
 
     fn feed(&mut self, data: &[i16]) {

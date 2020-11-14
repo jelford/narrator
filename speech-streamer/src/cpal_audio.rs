@@ -1,6 +1,6 @@
 use cpal::traits::HostTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::{SupportedStreamConfigRange};
+use cpal::SupportedStreamConfigRange;
 
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
@@ -104,7 +104,7 @@ fn stream_audio_to_channel(tx: Sender<Vec<i16>>) -> cpal::Stream {
         .expect("Unable to setup audio stream")
 }
 
-pub(crate) fn do_input() -> () {
+pub(crate) fn do_input() {
     let mut audio_input_stream = create_input_stream();
     let rx = audio_input_stream
         .receive()
@@ -126,7 +126,7 @@ pub(crate) fn do_input() -> () {
     writer.join().expect("Joining writer thread");
 }
 
-pub(crate) fn play_raw(data: Vec<i16>) -> () {
+pub(crate) fn play_raw(data: Vec<i16>) {
     let host = cpal::default_host();
     let output_device = host.default_output_device().expect("No output device");
 
@@ -191,7 +191,7 @@ pub(crate) fn play_raw(data: Vec<i16>) -> () {
     println!("finished playing in lib");
 }
 
-pub(crate) fn do_output() -> () {
+pub(crate) fn do_output() {
     let mut input_file =
         BufReader::new(File::open("audio.raw").expect("Unable to open output file"));
 

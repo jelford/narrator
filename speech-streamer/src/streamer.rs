@@ -17,7 +17,7 @@ pub(crate) fn recognize_stream() {
     let mut buff = Vec::with_capacity(16_000 * 5);
 
     for mut sample in apply_vad(rx_chan) {
-        if sample.len() > 0 {
+        if !sample.is_empty() {
             // println!("sample length: {}", sample.len());
             any_speech = true;
             recognizer.feed(&sample);
@@ -83,10 +83,7 @@ impl<I: Iterator<Item = Vec<i16>>> Iterator for VadFilter<I> {
             Some(Vec::new())
         } else {
             let v = self.input.next();
-            if v.is_none() {
-                return None;
-            }
-            let mut v = v.unwrap();
+            let mut v = v?;
 
             self.state.append(&v);
             let activation = self.state.sum();
