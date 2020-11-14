@@ -9,9 +9,9 @@ use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
-const deepspeech_input_format: cpal::SampleFormat = cpal::SampleFormat::I16;
-const deepspeech_sample_rate: cpal::SampleRate = cpal::SampleRate(16000);
-const deepspeech_num_channels: cpal::ChannelCount = 1;
+const DEEPSPEECH_INPUT_FORMAT: cpal::SampleFormat = cpal::SampleFormat::I16;
+const DEEPSPEECH_SAMPLE_RATE: cpal::SampleRate = cpal::SampleRate(16000);
+const DEEPSPEECH_NUM_CHANNELS: cpal::ChannelCount = 1;
 
 fn play_for_duration(stream: Stream) {
     stream.play().unwrap();
@@ -20,10 +20,10 @@ fn play_for_duration(stream: Stream) {
 }
 
 fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
-    config.channels() == deepspeech_num_channels
-        && config.sample_format() == deepspeech_input_format
-        && config.max_sample_rate() >= deepspeech_sample_rate
-        && config.min_sample_rate() <= deepspeech_sample_rate
+    config.channels() == DEEPSPEECH_NUM_CHANNELS
+        && config.sample_format() == DEEPSPEECH_INPUT_FORMAT
+        && config.max_sample_rate() >= DEEPSPEECH_SAMPLE_RATE
+        && config.min_sample_rate() <= DEEPSPEECH_SAMPLE_RATE
 }
 
 pub(crate) fn do_input() -> () {
@@ -49,7 +49,7 @@ pub(crate) fn do_input() -> () {
         .filter(fits_format_requirements)
         .last()
         .expect("Didn't find matching input format")
-        .with_sample_rate(deepspeech_sample_rate);
+        .with_sample_rate(DEEPSPEECH_SAMPLE_RATE);
     let supported_format = first_supported_config.sample_format();
     println!("Recording in format: {:?}", supported_format);
 
@@ -81,7 +81,7 @@ pub(crate) fn do_output() -> () {
         .filter(fits_format_requirements)
         .last()
         .expect("No supported configs found")
-        .with_sample_rate(deepspeech_sample_rate);
+        .with_sample_rate(DEEPSPEECH_SAMPLE_RATE);
 
     let supported_format = first_supported_config.sample_format();
     println!("Playback in format: {:?}", supported_format);
