@@ -4,7 +4,9 @@ use cpal::{Stream, SupportedStreamConfigRange};
 
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
-use std::sync::mpsc::{self, Sender, Receiver};
+use std::sync::atomic;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Barrier, Condvar, Mutex};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -38,7 +40,7 @@ pub(crate) trait AudioStream {
     fn stop(self);
 }
 
-pub(crate) trait AudioInputStream : AudioStream {
+pub(crate) trait AudioInputStream: AudioStream {
     fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>>;
 }
 
@@ -74,7 +76,7 @@ pub(crate) fn create_input_stream() -> impl AudioInputStream {
 
     AudioInputStreamContainer {
         stream,
-        rx: Some(rx)
+        rx: Some(rx),
     }
 }
 
@@ -108,12 +110,11 @@ fn stream_audio_to_channel(tx: Sender<Vec<i16>>) -> cpal::Stream {
         .expect("Unable to setup audio stream")
 }
 
-
-
 pub(crate) fn do_input() -> () {
-    
     let mut audio_input_stream = create_input_stream();
-    let rx = audio_input_stream.receive().expect("Unable to get audio stream receiver");
+    let rx = audio_input_stream
+        .receive()
+        .expect("Unable to get audio stream receiver");
 
     let writer = thread::spawn(move || {
         let mut output_file = File::create("audio.raw").expect("Unable to create output file");
@@ -131,7 +132,7 @@ pub(crate) fn do_input() -> () {
     writer.join().expect("Joining writer thread");
 }
 
-pub(crate) fn do_output() -> () {
+pub(crate) fn play_raw(data: Vec<i16>) -> () {
     let host = cpal::default_host();
     let output_device = host.default_output_device().expect("No output device");
 
@@ -144,35 +145,32 @@ pub(crate) fn do_output() -> () {
         .expect("No supported configs found")
         .with_sample_rate(DEEPSPEECH_SAMPLE_RATE);
 
-    let supported_format = first_supported_config.sample_format();
-    println!("Playback in format: {:?}", supported_format);
+    let mut raw = data.into_iter();
 
-    let mut input_file =
-        BufReader::new(File::open("audio.raw").expect("Unable to open output file"));
-
-    let mut buff = Box::new(Vec::new());
-    input_file.read_to_end(&mut buff).expect("Reading audio in");
-    let mut raw = buff.into_iter();
+    let lock_pair = Arc::new((Mutex::new(false), Condvar::new()));
+    let lock_pair2 = lock_pair.clone();
 
     let stream = output_device
         .build_output_stream(
             &first_supported_config.into(),
             move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                // let _localbuff = buff;
-                let mut point_buff = [0u8; 2];
+                let (lock, cond) = &*lock_pair2;
 
                 for d in data.iter_mut() {
+                    if *lock.lock().expect("lock") {
+                        *d = 0;
+                        continue;
+                    }
+
                     let byte = raw.next();
                     match byte {
                         None => {
                             *d = 0;
+                            *lock.lock().expect("lock") = true;
+                            cond.notify_all();
                         }
-                        Some(byte) => {
-                            point_buff[0] = byte;
-                            point_buff[1] = raw.next().unwrap();
-                            // point_buff[2] = raw.next().unwrap();
-                            // point_buff[3] = raw.next().unwrap();
-                            *d = i16::from_ne_bytes(point_buff);
+                        Some(point) => {
+                            *d = point;
                         }
                     }
                 }
@@ -184,7 +182,40 @@ pub(crate) fn do_output() -> () {
         )
         .expect("Unable to setup audio stream");
 
-    play_for_duration(stream);
+    let (lock, cond) = &*lock_pair;
+
+    stream.play().expect("Playing stream");
+    println!("going to wait for barrier");
+    // barrier.wait();
+    let _guard = cond
+        .wait_while(lock.lock().expect("aquiring finished lock"), |f| !*f)
+        .expect("waiting for finished");
+    drop(_guard);
+    println!("crossed barrier");
+    stream.pause().expect("stopping stream");
+    drop(stream);
+    println!("finished playing in lib");
+}
+
+pub(crate) fn do_output() -> () {
+    let mut input_file =
+        BufReader::new(File::open("audio.raw").expect("Unable to open output file"));
+
+    let mut data = Vec::new();
+    input_file
+        .read_to_end(&mut data)
+        .expect("reading raw input file");
+
+    let mut int_buff = [0u8; 2];
+    let data: Vec<i16> = data
+        .chunks_exact(2)
+        .map(|b| {
+            int_buff.copy_from_slice(b);
+            i16::from_ne_bytes(int_buff)
+        })
+        .collect();
+
+    play_raw(data);
 }
 
 pub(crate) fn print_info() {
