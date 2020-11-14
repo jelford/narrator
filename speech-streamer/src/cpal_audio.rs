@@ -1,12 +1,12 @@
 use cpal::traits::HostTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::{Stream, SupportedStreamConfigRange};
+use cpal::{SupportedStreamConfigRange};
 
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
-use std::sync::atomic;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Barrier, Condvar, Mutex};
+
+use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -14,12 +14,6 @@ use std::time::Duration;
 const DEEPSPEECH_INPUT_FORMAT: cpal::SampleFormat = cpal::SampleFormat::I16;
 const DEEPSPEECH_SAMPLE_RATE: cpal::SampleRate = cpal::SampleRate(16000);
 const DEEPSPEECH_NUM_CHANNELS: cpal::ChannelCount = 1;
-
-fn play_for_duration(stream: Stream) {
-    stream.play().unwrap();
-    sleep(Duration::from_millis(5000));
-    drop(stream);
-}
 
 fn play_stream_for_duration<S: AudioStream>(stream: &mut S) {
     stream.start();

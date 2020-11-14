@@ -2,7 +2,6 @@ use super::cpal_audio::{self, play_raw, AudioInputStream, AudioStream};
 use super::deepspeech_stt::{self, Recognizer};
 use std::collections::VecDeque;
 use std::mem;
-use std::sync::mpsc;
 
 pub(crate) fn recognize_stream() {
     let mut audio_input = cpal_audio::create_input_stream();
