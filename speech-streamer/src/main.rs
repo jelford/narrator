@@ -5,7 +5,6 @@ mod deepspeech_stt;
 mod streamer;
 
 fn main() {
-    println!("Hello, world!");
     let mode = env::args().nth(1).expect("Requires mode");
     match mode.as_str() {
         "record" => cpal_audio::do_input(),

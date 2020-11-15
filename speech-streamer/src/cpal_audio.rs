@@ -179,16 +179,13 @@ pub(crate) fn play_raw(data: Vec<i16>) {
     let (lock, cond) = &*lock_pair;
 
     stream.play().expect("Playing stream");
-    println!("going to wait for barrier");
     // barrier.wait();
     let _guard = cond
         .wait_while(lock.lock().expect("aquiring finished lock"), |f| !*f)
         .expect("waiting for finished");
     drop(_guard);
-    println!("crossed barrier");
     stream.pause().expect("stopping stream");
     drop(stream);
-    println!("finished playing in lib");
 }
 
 pub(crate) fn do_output() {
