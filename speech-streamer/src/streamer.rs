@@ -61,7 +61,7 @@ impl RingBuff {
     fn sum(&self) -> u32 {
         self.data
             .iter()
-            .map(|i| i.abs() as u32)
+            .map(|i| i.saturating_abs() as u32)
             .fold(0u32, |a, b| a.saturating_add(b))
     }
 }
