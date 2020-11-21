@@ -173,7 +173,6 @@ impl AudioInputStreamContainer {
     }
 }
 
-
 impl super::AudioStream for AudioInputStreamContainer {
     fn start(&mut self) {
         self.play();

@@ -39,7 +39,9 @@ fn do_streaming_recognize() {
 
     stream.start();
 
-    for utterance in streamer::recognize_stream(vad::VoiceEvent::iter_from_audio(rx_chan.into_iter())) {
+    for utterance in
+        streamer::recognize_stream(vad::VoiceEvent::iter_from_audio(rx_chan.into_iter()))
+    {
         println!(": {}", utterance);
     }
 }

@@ -1,7 +1,7 @@
 use super::deepspeech_stt::{self, Recognizer};
 use super::vad::VoiceEvent;
 
-pub struct RecognizedStrings<I: Iterator<Item = VoiceEvent>, R: Recognizer>  {
+pub struct RecognizedStrings<I: Iterator<Item = VoiceEvent>, R: Recognizer> {
     recognizer: R,
     voice_events: I,
 }
@@ -27,11 +27,13 @@ impl<I: Iterator<Item = VoiceEvent>, R: Recognizer> Iterator for RecognizedStrin
     }
 }
 
-pub(crate) fn recognize_stream<I: Iterator<Item = VoiceEvent>>(voice_events: I) -> RecognizedStrings<I, impl Recognizer> {
-
+pub(crate) fn recognize_stream<I: Iterator<Item = VoiceEvent>>(
+    voice_events: I,
+) -> RecognizedStrings<I, impl Recognizer> {
     let recognizer = deepspeech_stt::recognizer();
 
     RecognizedStrings {
-        recognizer, voice_events
+        recognizer,
+        voice_events,
     }
 }
