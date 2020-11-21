@@ -62,35 +62,7 @@ fn load_ds_model() -> ds::Model {
     model
 }
 
-pub(crate) fn recognize_raw_sample() {
-    println!(
-        "deepspeech version: {}",
-        ds::deepspeech_version().expect("resolving deepspeech version")
-    );
-    let mut model = load_ds_model();
-
-    let sample_rate = model.get_sample_rate();
-    println!("model sample rate: {}", sample_rate);
-
-    let data = read_raw_data_from_file();
-
-    let result = model
-        .speech_to_text_with_metadata(&data, 5)
-        .expect("running model");
-    for t in result.transcripts() {
-        println!("Candiate (confidence: {}): ", t.confidence());
-        let tokens: Vec<&str> = t.tokens().iter().map(|t| t.text().expect("text")).collect();
-        println!("Tokens: {}", tokens.join(", "));
-
-        println!();
-    }
-}
-
 pub(crate) fn recognize_raw_sample_as_stream() {
-    println!(
-        "deepspeech version: {}",
-        ds::deepspeech_version().expect("resolving deepspeech version")
-    );
     let mut model = load_ds_model();
 
     let sample_rate = model.get_sample_rate();

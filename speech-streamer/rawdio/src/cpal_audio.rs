@@ -2,76 +2,18 @@ use cpal::traits::HostTrait;
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::SupportedStreamConfigRange;
 
-use std::fs::File;
-use std::io::{BufReader, Read, Write};
-
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
-use std::thread::sleep;
-use std::time::Duration;
 
 const DEEPSPEECH_INPUT_FORMAT: cpal::SampleFormat = cpal::SampleFormat::I16;
 const DEEPSPEECH_SAMPLE_RATE: cpal::SampleRate = cpal::SampleRate(16000);
 const DEEPSPEECH_NUM_CHANNELS: cpal::ChannelCount = 1;
-
-fn play_stream_for_duration<S: AudioStream>(stream: &mut S) {
-    stream.start();
-    sleep(Duration::from_millis(5_000));
-    stream.pause();
-}
 
 fn fits_format_requirements(config: &SupportedStreamConfigRange) -> bool {
     config.channels() == DEEPSPEECH_NUM_CHANNELS
         && config.sample_format() == DEEPSPEECH_INPUT_FORMAT
         && config.max_sample_rate() >= DEEPSPEECH_SAMPLE_RATE
         && config.min_sample_rate() <= DEEPSPEECH_SAMPLE_RATE
-}
-
-pub(crate) trait AudioStream {
-    fn start(&mut self);
-    fn pause(&mut self);
-    fn stop(self);
-}
-
-pub(crate) trait AudioInputStream: AudioStream {
-    fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>>;
-}
-
-struct AudioInputStreamContainer {
-    stream: cpal::Stream,
-    rx: Option<mpsc::Receiver<Vec<i16>>>,
-}
-
-impl AudioStream for AudioInputStreamContainer {
-    fn start(&mut self) {
-        self.stream.play().expect("Unable to play stream");
-    }
-
-    fn pause(&mut self) {
-        self.stream.pause().expect("unable to pause stream");
-    }
-
-    fn stop(self) {
-        self.stream.pause().expect("unable to stop stream");
-    }
-}
-
-impl AudioInputStream for AudioInputStreamContainer {
-    fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>> {
-        self.rx.take()
-    }
-}
-
-pub(crate) fn create_input_stream() -> impl AudioInputStream {
-    let (tx, rx) = mpsc::channel();
-
-    let stream = stream_audio_to_channel(tx);
-
-    AudioInputStreamContainer {
-        stream,
-        rx: Some(rx),
-    }
 }
 
 fn stream_audio_to_channel(tx: Sender<Vec<i16>>) -> cpal::Stream {
@@ -104,26 +46,16 @@ fn stream_audio_to_channel(tx: Sender<Vec<i16>>) -> cpal::Stream {
         .expect("Unable to setup audio stream")
 }
 
-pub(crate) fn do_input() {
-    let mut audio_input_stream = create_input_stream();
-    let rx = audio_input_stream
-        .receive()
-        .expect("Unable to get audio stream receiver");
+#[allow(dead_code)]
+pub fn create_input_stream() -> AudioInputStreamContainer {
+    let (tx, rx) = mpsc::channel();
 
-    let writer = thread::spawn(move || {
-        let mut output_file = File::create("audio.raw").expect("Unable to create output file");
-        for d in rx {
-            let byte_chunks: Vec<[u8; 2]> = d.iter().map(|p| p.to_ne_bytes()).collect();
-            for b in byte_chunks {
-                output_file.write_all(&b).expect("Unable to write out data");
-            }
-        }
-    });
+    let stream = stream_audio_to_channel(tx);
 
-    play_stream_for_duration(&mut audio_input_stream);
-    audio_input_stream.stop();
-
-    writer.join().expect("Joining writer thread");
+    AudioInputStreamContainer {
+        stream,
+        rx: Some(rx),
+    }
 }
 
 pub(crate) fn play_raw(data: Vec<i16>) {
@@ -188,27 +120,6 @@ pub(crate) fn play_raw(data: Vec<i16>) {
     drop(stream);
 }
 
-pub(crate) fn do_output() {
-    let mut input_file =
-        BufReader::new(File::open("audio.raw").expect("Unable to open output file"));
-
-    let mut data = Vec::new();
-    input_file
-        .read_to_end(&mut data)
-        .expect("reading raw input file");
-
-    let mut int_buff = [0u8; 2];
-    let data: Vec<i16> = data
-        .chunks_exact(2)
-        .map(|b| {
-            int_buff.copy_from_slice(b);
-            i16::from_ne_bytes(int_buff)
-        })
-        .collect();
-
-    play_raw(data);
-}
-
 pub(crate) fn print_info() {
     let host = cpal::default_host();
 
@@ -245,4 +156,40 @@ pub(crate) fn print_info() {
             .name()
             .expect("resolving output device name")
     );
+}
+
+pub struct AudioInputStreamContainer {
+    stream: cpal::Stream,
+    rx: Option<mpsc::Receiver<Vec<i16>>>,
+}
+
+impl AudioInputStreamContainer {
+    pub(crate) fn play(&mut self) {
+        self.stream.play().expect("playing audio stream");
+    }
+
+    pub(crate) fn pause(&mut self) {
+        self.stream.pause().expect("pausing audio stream");
+    }
+}
+
+
+impl super::AudioStream for AudioInputStreamContainer {
+    fn start(&mut self) {
+        self.play();
+    }
+
+    fn pause(&mut self) {
+        self.pause();
+    }
+
+    fn stop(mut self) {
+        self.pause();
+    }
+}
+
+impl super::AudioInputStream for AudioInputStreamContainer {
+    fn receive(&mut self) -> Option<mpsc::Receiver<Vec<i16>>> {
+        self.rx.take()
+    }
 }

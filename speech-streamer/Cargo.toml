@@ -1,3 +1,7 @@
+[workspace]
+members = ["rawdio"]
+exclude = ["deepspeech-rs"]
+
 [package]
 name = "speech-streamer"
 version = "0.1.0"
@@ -7,6 +11,10 @@ links = "deepspeech"
 build = "build.rs"
 
 [dependencies]
-cpal = "0.13.1"
 deepspeech = { path = "deepspeech-rs" }
+rawdio = { path = "rawdio" , default-features = false}
+clap = { version = "^2.33", optional = true}
+anyhow = { version = "^1.0", optional = true}
 
+[features]
+default = ["clap", "anyhow"]
